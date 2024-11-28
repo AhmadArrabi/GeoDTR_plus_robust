@@ -58,7 +58,7 @@ class ImageDataset(Dataset):
 
 
 class USADataset(Dataset):
-    def __init__(self, data_dir="../scratch/CVUSA/dataset/", geometric_aug='strong', sematic_aug='strong', robust_aug='strong', mode='train', is_polar=True, is_mutual=True):
+    def __init__(self, data_dir="../scratch/CVUSA/dataset/", geometric_aug='strong', sematic_aug='strong', robust_aug='strong', mode='train', is_polar=True, is_mutual=True, fov=360, orientation='none'):
         self.data_dir = data_dir
 
         STREET_IMG_WIDTH = 671
@@ -71,6 +71,8 @@ class USADataset(Dataset):
         self.mode = mode
         self.is_mutual = is_mutual
         self.robust_aug = robust_aug
+        self.fov = fov
+        self.orientation = orientation
 
         if not is_polar:
             SATELLITE_IMG_WIDTH = 256
@@ -182,6 +184,21 @@ class USADataset(Dataset):
             occlusion_box_center = randrange(occlusion_box_width//2 + 1, self.STREET_IMG_WIDTH-(occlusion_box_width//2)-1)
             ground_first[:,:,occlusion_box_center-occlusion_box_width//2:occlusion_box_center+occlusion_box_width//2] = 1.
             ground_second[:,:,occlusion_box_center-occlusion_box_width//2:occlusion_box_center+occlusion_box_width//2] = 1.
+
+        if self.robust_aug=='none':
+            ground_orientation = self.orientation
+            FOV = self.fov
+
+            if ground_orientation != 'none': 
+                _, ground_first = Rotate(satellite_first, ground_first, ground_orientation, self.is_polar)
+                _, ground_second = Rotate(satellite_second, ground_second, ground_orientation, self.is_polar)
+
+            occlusion_degree = int(360-FOV)
+            occlusion_box_width = (self.STREET_IMG_WIDTH*occlusion_degree)//(360)
+            occlusion_box_center = randrange(occlusion_box_width//2 + 1, self.STREET_IMG_WIDTH-(occlusion_box_width//2)-1)
+            ground_first[:,:,occlusion_box_center-occlusion_box_width//2:occlusion_box_center+occlusion_box_width//2] = 1.
+            ground_second[:,:,occlusion_box_center-occlusion_box_width//2:occlusion_box_center+occlusion_box_width//2] = 1.
+
 
         # Generate first view
         if self.geometric_aug == "strong" or self.geometric_aug == 'same':

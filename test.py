@@ -98,7 +98,10 @@ if __name__ == "__main__":
         validateloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=8)
     if opt.dataset == 'CVUSA':
         data_path = os.path.join(opt.data_dir, 'CVUSA', 'dataset')
-        dataset = USADataset(data_dir = data_path, geometric_aug='none', sematic_aug='none', mode='val', is_polar=polar_transformation, is_mutual=False)
+        if (opt.fov == 360) and (opt.orientation == 'none'):
+            dataset = USADataset(data_dir = data_path, geometric_aug='none', sematic_aug='none', robust_aug='strong', mode='val', is_polar=polar_transformation, is_mutual=False)
+        else:
+            dataset = USADataset(data_dir = data_path, geometric_aug='none', sematic_aug='none', robust_aug='none', mode='val', is_polar=polar_transformation, is_mutual=False, fov=opt.fov, orientation=opt.orientation)
         validateloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=8)
     
     print("number of test samples : ", len(dataset))
