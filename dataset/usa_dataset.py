@@ -2,13 +2,14 @@ import random
 import os
 import time
 from torch.utils.data import Dataset
-from .trans_utils import RandomPosterize
+from dataset.trans_utils import RandomPosterize
 from PIL import Image, ImageFile, ImageOps
-from .augmentations import HFlip, Rotate
+from dataset.augmentations import HFlip, Rotate
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 import random
 import torchvision
+from random import randrange
 
 
 class ImageDataset(Dataset):
@@ -57,15 +58,19 @@ class ImageDataset(Dataset):
 
 
 class USADataset(Dataset):
-    def __init__(self, data_dir="../scratch/CVUSA/dataset/", geometric_aug='strong', sematic_aug='strong', mode='train', is_polar=True, is_mutual=True):
+    def __init__(self, data_dir="../scratch/CVUSA/dataset/", geometric_aug='strong', sematic_aug='strong', robust_aug='strong', mode='train', is_polar=True, is_mutual=True):
         self.data_dir = data_dir
 
         STREET_IMG_WIDTH = 671
         STREET_IMG_HEIGHT = 122
 
+        self.STREET_IMG_WIDTH = STREET_IMG_WIDTH
+        self.STREET_IMG_HEIGHT = STREET_IMG_HEIGHT
+
         self.is_polar = is_polar
         self.mode = mode
         self.is_mutual = is_mutual
+        self.robust_aug = robust_aug
 
         if not is_polar:
             SATELLITE_IMG_WIDTH = 256
@@ -160,12 +165,23 @@ class USADataset(Dataset):
             satellite_second = satellite_first.clone().detach()
             ground_second = ground_first.clone().detach()
 
-        # print(satellite_first.shape)
-        # print(ground_first.shape)
-        # print(satellite_second.shape)
-        # print(ground_second.shape)
-        # print("-----------------")
+        ground_original = ground_first.clone().detach()
+        if self.robust_aug=='strong':
+            
+            #orientation
+            ground_orientation = random.choice(['left', 'right', 'back', 'none'])
+            
+            if ground_orientation != 'none': 
+                _, ground_first = Rotate(satellite_first, ground_first, ground_orientation, self.is_polar)
+                _, ground_second = Rotate(satellite_second, ground_second, ground_orientation, self.is_polar)
 
+            # limited FOV
+            FOV = random.randint(70, 360)
+            occlusion_degree = int(360-FOV)
+            occlusion_box_width = (self.STREET_IMG_WIDTH*occlusion_degree)//(360)
+            occlusion_box_center = randrange(occlusion_box_width//2 + 1, self.STREET_IMG_WIDTH-(occlusion_box_width//2)-1)
+            ground_first[:,:,occlusion_box_center-occlusion_box_width//2:occlusion_box_center+occlusion_box_width//2] = 1.
+            ground_second[:,:,occlusion_box_center-occlusion_box_width//2:occlusion_box_center+occlusion_box_width//2] = 1.
 
         # Generate first view
         if self.geometric_aug == "strong" or self.geometric_aug == 'same':
@@ -199,7 +215,8 @@ class USADataset(Dataset):
 
         if self.is_mutual == False:
             return {'satellite':satellite_first, 
-                    'ground':ground_first}
+                    'ground':ground_first,
+                    'ground_original': ground_original}
 
         else:
             # mutual_satellite = satellite.clone().detach()
@@ -260,11 +277,13 @@ if __name__ == "__main__":
     #                 ]
 
     dataloader = DataLoader(
-        USADataset(data_dir='../scratch/CVUSA/dataset/', 
-                   geometric_aug='strong', 
-                   sematic_aug='strong', 
-                   mode='train', 
-                   is_polar=False),\
+        USADataset(data_dir='/gpfs2/scratch/xzhang31/CVUSA/dataset/', 
+                   geometric_aug='none', 
+                   sematic_aug='none', 
+                   mode='val', 
+                   is_polar=False,
+                   fov=360,
+                   ground_orientation='none'),\
          batch_size=4, 
          shuffle=False, 
          num_workers=8)

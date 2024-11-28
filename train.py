@@ -63,11 +63,13 @@ if __name__ == "__main__":
     parser.add_argument('--sem_aug', default='strong', choices=['strong', 'weak', 'none', 'same'], help='semantic augmentation strength')
     parser.add_argument('--mutual', default=False, action='store_true', help='no mutual learning')
     parser.add_argument('--backbone', type=str, default='resnet', help='backbone selection')
-
+    parser.add_argument('--robust_aug', default='strong', choices=['strong', 'weak', 'none'], help='fov and orientation augmentation strength')
     parser.add_argument('--normalize', default=False, action='store_true', help='whether normalize descriptors')
     parser.add_argument('--orthogonalize', default=False, action='store_true', help='whether orthogonalize descriptors')
     parser.add_argument('--bottleneck', default=False, action='store_true', help='whether use bottleneck for descriptors')
-
+    parser.add_argument('--robust_loss', default=False, action='store_true', help='whether to use the robust loss')
+    parser.add_argument('--robust_loss_mse', default=False, action='store_true', help='whether to use the robust loss (mse)')
+    
 
     opt = parser.parse_args()
     opt.model = 'GeoDTR'
@@ -164,7 +166,9 @@ if __name__ == "__main__":
 
         dataloader = DataLoader(USADataset(data_dir = opt.data_dir, \
                                 geometric_aug=opt.geo_aug, \
-                                sematic_aug=opt.sem_aug, mode='train', \
+                                sematic_aug=opt.sem_aug, \
+                                robust_aug=opt.robust_aug, \
+                                mode='train', \
                                 is_polar=polar_transformation, \
                                 is_mutual=opt.mutual),\
                                 batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -172,6 +176,7 @@ if __name__ == "__main__":
         validateloader = DataLoader(USADataset(data_dir = opt.data_dir, \
                                     geometric_aug='none', \
                                     sematic_aug='none', \
+                                    robust_aug=opt.robust_aug, \
                                     mode='val', \
                                     is_polar=polar_transformation, \
                                     is_mutual=False),\
@@ -239,12 +244,20 @@ if __name__ == "__main__":
     # Start training
     logger.info("start training...")
     best_epoch = {'acc':0, 'epoch':0}
+
+    if opt.robust_loss_mse:
+        loss_mse = nn.MSELoss()
+
     for epoch in range(start_epoch, number_of_epoch):
 
         logger.info(f"start epoch {epoch}")
         epoch_triplet_loss = 0
         if is_cf:
             epoch_cf_loss = 0
+        if opt.robust_loss:
+            epoch_robust_loss = 0
+        if opt.robust_loss_mse:
+            epoch_robust_loss_mse = 0
         if opt.mutual:
             epoch_mutual_loss = 0
 
@@ -275,6 +288,14 @@ if __name__ == "__main__":
                 # print([int(perturb[0][0]), perturb[1][0]])
                 # print([int(perturb[0][1]), perturb[1][1]])
                 # print([int(perturb[0][2]), perturb[1][2]])
+            elif opt.robust_loss:
+                sat_all = batch["satellite"]
+                grd_all = batch["ground"]
+                grd_all_original = batch['ground_original']
+            elif opt.robust_loss_mse:
+                sat_all = batch["satellite"]
+                grd_all = batch["ground"]
+                grd_all_original = batch['ground_original']
             else:
                 sat_all = batch["satellite"]
                 grd_all = batch["ground"]
@@ -283,6 +304,7 @@ if __name__ == "__main__":
                 sat_global, grd_global, fake_sat_global, fake_grd_global, sat_desc, grd_desc = model(sat_all, grd_all, is_cf)
             else:
                 sat_global, grd_global, sat_desc, grd_desc = model(sat_all, grd_all, is_cf)
+                _, grd_global_original, _, grd_desc_original = model(sat_all, grd_all_original, is_cf)
 
             triplet_loss = softMarginTripletLoss(sate_vecs=sat_global, pano_vecs=grd_global, loss_weight=gamma)
 
@@ -296,6 +318,16 @@ if __name__ == "__main__":
                 CFLoss_total = (CFLoss_sat + CFLoss_grd) / 2.0
                 loss += CFLoss_total
                 epoch_cf_loss += CFLoss_total.item()
+
+            if opt.robust_loss:
+                robust_loss = softMarginTripletLoss(sate_vecs=grd_global, pano_vecs=grd_global_original, loss_weight=gamma)
+                loss += robust_loss
+                epoch_robust_loss += robust_loss.item()
+
+            if opt.robust_loss_mse:
+                robust_loss_mse = loss_mse(grd_global, grd_global_original)
+                loss += robust_loss_mse
+                epoch_robust_loss_mse += robust_loss_mse.item()
 
             # mutual loss
             if opt.mutual:
@@ -341,6 +373,16 @@ if __name__ == "__main__":
             current_cf_loss = float(epoch_cf_loss) / float(len(dataloader))
             print(f"Epoch {epoch} CF_Loss: {current_cf_loss}")
             writer.add_scalar('cf_loss', current_cf_loss, epoch)
+
+        if opt.robust_loss:
+            current_robust_loss = float(epoch_robust_loss) / float(len(dataloader))
+            print(f"Epoch {epoch} robust_Loss: {current_robust_loss}")
+            writer.add_scalar('robust_loss', current_robust_loss, epoch)
+
+        if opt.robust_loss_mse:
+            current_robust_loss_mse = float(epoch_robust_loss_mse) / float(len(dataloader))
+            print(f"Epoch {epoch} robust_Loss_mse: {current_robust_loss_mse}")
+            writer.add_scalar('robust_loss_mse', current_robust_loss_mse, epoch)
 
         if opt.mutual:
             current_mutual_loss = float(epoch_mutual_loss) / float(len(dataloader))

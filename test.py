@@ -52,6 +52,8 @@ if __name__ == "__main__":
     parser.add_argument('--validate', default=True, action='store_false', help='perform validate or not')
     parser.add_argument('--save', default='none', choices=['none', 'mat', 'pt'], help='save extracted features into .mat files or pt files')
     parser.add_argument('--backbone', type=str, default='resnet', help='backbone selection')
+    parser.add_argument('--orientation', type=str, default='none')
+    parser.add_argument('--fov', type=int, default=360)
 
     opt = parser.parse_args()
 
@@ -130,6 +132,7 @@ if __name__ == "__main__":
     # print(f"model parameters : {num_params}M")
 
     print("start testing...")
+    print(f"FOV: {opt.fov} orientation {opt.orientation}")
 
     # valSateFeatures = None
     # valStreetFeature = None
@@ -188,3 +191,5 @@ if __name__ == "__main__":
     elif opt.save == 'pt':
         torch.save(valSateFeatures, 'sat_global_descriptor.pt')
         torch.save(valStreetFeature, 'grd_global_descriptor.pt')
+
+#python test.py --data_dir "/gpfs2/scratch/xzhang31" --verbose --model_path "/gpfs1/home/x/z/xzhang31/GeoDTR_plus/CVUSA_NP" --no_polar
