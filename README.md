@@ -1,6 +1,6 @@
 # Overview
 
-This is a re-implementation of the paper ["GeoDTR+: Toward generic cross-view geolocalization via geometric disentanglement"](https://arxiv.org/abs/2308.09624). We extend this work by making it adaptable to limited FOV and non-north-aligned input ground images. 
+This is a re-implementation of the paper ["GeoDTR+: Toward generic cross-view geolocalization via geometric disentanglement"](https://arxiv.org/abs/2308.09624). We extend this work by making it adaptable to limited FOV and non-north-aligned input ground images. This work was implemented as a class project for the course CS6540:Deep learning, we mainly reference the work in ["https://eceo-epfl.github.io/ConGeo/"]
 
 # Usage
 
